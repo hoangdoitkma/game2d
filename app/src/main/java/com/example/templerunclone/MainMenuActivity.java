@@ -51,7 +51,7 @@ public class MainMenuActivity extends Activity {
 
         // nút Play
         btnPlay.setOnClickListener(v -> {
-            Intent intent = new Intent(MainMenuActivity.this, GameActivity.class);
+            Intent intent = new Intent(MainMenuActivity.this, MainActivity.class);
             startActivity(intent);
         });
 

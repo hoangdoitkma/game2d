@@ -13,8 +13,8 @@
         android:theme="@style/Theme.TempleRunClone"
         tools:targetApi="31">
 
-        <!-- GameActivity (chỉ để chơi game, không phải launcher) -->
-        <activity android:name=".GameActivity"
+        <!-- MainActivity (game activity với architecture mới) -->
+        <activity android:name=".MainActivity"
             android:exported="false" />
 
         <!-- MainMenuActivity là launcher -->

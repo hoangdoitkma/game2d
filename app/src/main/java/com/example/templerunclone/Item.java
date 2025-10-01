@@ -10,10 +10,11 @@ public class Item {
         HEALTH, SHIELD, COIN, SPEED, WEAPON
     }
 
-    private Bitmap bitmap;
-    private int x, y;
-    private int speed;
-    private Type type;
+    private final Bitmap bitmap;
+    private final int x;
+    private int y;
+    private final int speed;
+    private final Type type;
     private boolean active = true;
 
     public Item(Bitmap bitmap, int x, int y, int speed, Type type) {

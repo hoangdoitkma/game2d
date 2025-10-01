@@ -1,9 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/mainRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center"
-    android:background="#000">
+    android:background="@drawable/background">
 
     <!-- Progress loading -->
     <ProgressBar
@@ -20,41 +21,109 @@
         android:gravity="center"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone">
+        android:visibility="gone"
+        android:padding="32dp">
 
+        <!-- Game Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SPACE SHOOTER"
+            android:textSize="36sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4"
+            android:layout_marginBottom="48dp"
+            android:gravity="center" />
+
+        <!-- Play Button -->
         <Button
             android:id="@+id/btnPlay"
-            android:text="Play"
-            android:layout_width="200dp"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"/>
+            android:text="PLAY"
+            android:layout_width="250dp"
+            android:layout_height="60dp"
+            android:layout_margin="16dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/button_background"
+            android:elevation="4dp" />
 
+        <!-- Exit Button -->
         <Button
             android:id="@+id/btnExit"
-            android:text="Exit"
-            android:layout_width="200dp"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"/>
+            android:text="EXIT"
+            android:layout_width="250dp"
+            android:layout_height="60dp"
+            android:layout_margin="16dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/button_background"
+            android:elevation="4dp" />
 
+        <!-- Settings Row -->
         <LinearLayout
             android:orientation="horizontal"
             android:gravity="center"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp">
 
-            <ImageButton
-                android:id="@+id/btnMusic"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/music_turnon"
-                android:background="@android:color/transparent"/>
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp">
 
-            <ImageButton
-                android:id="@+id/btnSound"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/sound_on"
-                android:background="@android:color/transparent"/>
+                <ImageButton
+                    android:id="@+id/btnMusic"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:src="@drawable/music_turnon"
+                    android:background="@drawable/button_circle_background"
+                    android:scaleType="centerInside"
+                    android:padding="8dp"
+                    android:elevation="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Music"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp">
+
+                <ImageButton
+                    android:id="@+id/btnSound"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:src="@drawable/sound_on"
+                    android:background="@drawable/button_circle_background"
+                    android:scaleType="centerInside"
+                    android:padding="8dp"
+                    android:elevation="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sound"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </RelativeLayout>
