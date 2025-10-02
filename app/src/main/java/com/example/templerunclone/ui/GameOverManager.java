@@ -237,4 +237,23 @@ public class GameOverManager {
     public void setUseGameOverImage(boolean useGameOverImage) {
         this.useGameOverImage = useGameOverImage;
     }
+    
+    public void cleanup() {
+        // Recycle bitmaps to free memory
+        if (gameOverBitmap != null && !gameOverBitmap.isRecycled()) {
+            gameOverBitmap.recycle();
+        }
+        if (youLoseBitmap != null && !youLoseBitmap.isRecycled()) {
+            youLoseBitmap.recycle();
+        }
+        if (replayButtonBitmap != null && !replayButtonBitmap.isRecycled()) {
+            replayButtonBitmap.recycle();
+        }
+        if (menuButtonBitmap != null && !menuButtonBitmap.isRecycled()) {
+            menuButtonBitmap.recycle();
+        }
+        if (settingButtonBitmap != null && !settingButtonBitmap.isRecycled()) {
+            settingButtonBitmap.recycle();
+        }
+    }
 }

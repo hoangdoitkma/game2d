@@ -93,6 +93,9 @@ public class GameView extends SurfaceView implements Runnable {
             
             gameEngine = new GameEngine(screenWidth, screenHeight);
             
+            // Set context for high score manager
+            gameEngine.setContext(getContext());
+            
             // Initialize resource manager
             resourceManager = new ResourceManager(screenWidth, screenHeight);
             resourceManager.loadResources(getContext());
@@ -237,8 +240,9 @@ public class GameView extends SurfaceView implements Runnable {
                 }
                 break;
             case "HIGH_SCORES":
-                // TODO: Implement high scores screen
-                Log.d(TAG, "High scores requested");
+                // Launch high scores activity
+                Intent highScoreIntent = new Intent(getContext(), com.example.templerunclone.HighScoreActivity.class);
+                getContext().startActivity(highScoreIntent);
                 break;
         }
     }

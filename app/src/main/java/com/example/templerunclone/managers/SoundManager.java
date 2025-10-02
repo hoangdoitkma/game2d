@@ -19,6 +19,7 @@ public class SoundManager {
     private int soundPlayerHit = 0;
     private int soundBorderHit = 0;
     private int soundPowerUp = 0;
+    private int soundCongratulations = 0;
     
     private boolean soundEffectsEnabled = true;
     private boolean musicEnabled = true;
@@ -36,6 +37,14 @@ public class SoundManager {
             soundPlayerHit = soundPool.load(context, R.raw.player_explode, 1);
             soundBorderHit = soundPool.load(context, R.raw.border, 1);
             soundPowerUp = soundPool.load(context, R.raw.warning, 1); // Using warning sound for power-up
+            
+            // Try to load congratulations sound
+            try {
+                soundCongratulations = soundPool.load(context, R.raw.congratulation, 1);
+            } catch (Exception e) {
+                Log.w("SoundManager", "Congratulations sound not found, will use default sound");
+                soundCongratulations = soundPowerUp; // Fallback to power-up sound
+            }
             
             // Initialize background music
             bgMusic = MediaPlayer.create(context, R.raw.bg_music);
@@ -78,6 +87,12 @@ public class SoundManager {
     public void playPowerUp() {
         if (soundEffectsEnabled && soundPowerUp != 0) {
             soundPool.play(soundPowerUp, 1f, 1f, 1, 0, 1f);
+        }
+    }
+    
+    public void playCongratulations() {
+        if (soundEffectsEnabled && soundCongratulations != 0) {
+            soundPool.play(soundCongratulations, 1f, 1f, 1, 0, 1f);
         }
     }
     

@@ -17,6 +17,10 @@
         <activity android:name=".MainActivity"
             android:exported="false" />
 
+        <!-- HighScoreActivity để hiển thị high scores -->
+        <activity android:name=".HighScoreActivity"
+            android:exported="false" />
+
         <!-- MainMenuActivity là launcher -->
         <activity
             android:name=".MainMenuActivity"

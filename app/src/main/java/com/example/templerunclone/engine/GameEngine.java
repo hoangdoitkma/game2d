@@ -7,6 +7,7 @@ import com.example.templerunclone.entities.bullets.*;
 import com.example.templerunclone.managers.*;
 import com.example.templerunclone.ui.HUDManager;
 import com.example.templerunclone.ui.GameOverManager;
+import com.example.templerunclone.ui.WinManager;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -28,6 +29,8 @@ public class GameEngine {
     // UI Managers
     private HUDManager hudManager;
     private GameOverManager gameOverManager;
+    private WinManager winManager;
+    private HighScoreManager highScoreManager;
     
     // Game state
     private GameState gameState;
@@ -43,6 +46,9 @@ public class GameEngine {
     // Screen dimensions
     private int screenWidth, screenHeight;
     
+    // Context for managers that need it
+    private android.content.Context context;
+    
     // Background
     private BackgroundRenderer backgroundRenderer;
     
@@ -51,6 +57,13 @@ public class GameEngine {
         this.screenHeight = screenHeight;
         
         initialize();
+    }
+    
+    public void setContext(android.content.Context context) {
+        this.context = context;
+        if (highScoreManager == null && context != null) {
+            highScoreManager = new HighScoreManager(context);
+        }
     }
     
     private void initialize() {
@@ -68,13 +81,22 @@ public class GameEngine {
         // Initialize UI managers
         hudManager = new HUDManager(screenWidth, screenHeight);
         gameOverManager = new GameOverManager(screenWidth, screenHeight);
+        winManager = new WinManager(screenWidth, screenHeight);
         
-        // Set button bitmaps after gameOverManager is created
+        // Set button bitmaps after managers are created
         gameOverManager.setButtonBitmaps(
             resourceManager.getReplayButtonBitmap(),
             resourceManager.getMenuButtonBitmap(), 
             resourceManager.getSettingButtonBitmap()
         );
+        
+        winManager.setButtonBitmaps(
+            resourceManager.getReplayButtonBitmap(),
+            resourceManager.getMenuButtonBitmap(),
+            resourceManager.getHighScoresButtonBitmap()
+        );
+        
+        winManager.setCongratulationsBitmap(resourceManager.getCongratulationsBitmap());
         
         // Initialize collections
         bullets = new ArrayList<>();
@@ -96,7 +118,7 @@ public class GameEngine {
         float deltaTime = currentTime - lastUpdateTime;
         lastUpdateTime = currentTime;
         
-        if (gameState.isGameOver()) {
+        if (gameState.isGameOver() || gameState.isGameWon()) {
             return;
         }
         
@@ -128,12 +150,26 @@ public class GameEngine {
         checkCollisions();
         
         // Update game state
+        boolean wasGameWon = gameState.isGameWon();
         gameState.update(deltaTime);
+        
+        // Check if player just won the game
+        if (!wasGameWon && gameState.isGameWon()) {
+            soundManager.playCongratulations();
+            // Save high score
+            if (highScoreManager != null) {
+                highScoreManager.addScore(gameState.getScore(), gameState.getLevel());
+            }
+        }
         
         // Check if player is dead
         if (player.isDead()) {
             gameState.setGameOver(true);
             hudManager.stopTimer(); // Dừng đồng hồ khi game over
+            // Save high score for game over too
+            if (highScoreManager != null) {
+                highScoreManager.addScore(gameState.getScore(), gameState.getLevel());
+            }
         }
     }
     
@@ -294,6 +330,11 @@ public class GameEngine {
             long playTime = hudManager.getPlayTime(); // Use HUD manager's frozen time
             gameOverManager.draw(canvas, gameState.getScore(), gameState.getLevel(), playTime);
         }
+        
+        // Draw Win screen if game is won
+        if (gameState.isGameWon()) {
+            winManager.draw(canvas, gameState.getScore(), gameState.getLevel());
+        }
     }
     
     private void handleExplosiveDamage(float explosionX, float explosionY, float radius, int damage) {
@@ -327,7 +368,19 @@ public class GameEngine {
                 // This will be handled by GameView to show main menu
                 gameState.setAction("MENU");
             }
-        } else if (!gameState.isGameOver()) {
+        } else if (gameState.isGameWon() && isDown) {
+            // Handle win touch events
+            String action = winManager.handleTouch(x, y);
+            if ("REPLAY".equals(action)) {
+                resetGame();
+            } else if ("MENU".equals(action)) {
+                // This will be handled by GameView to return to main menu
+                gameState.setAction("MENU");
+            } else if ("HIGH_SCORES".equals(action)) {
+                // This will be handled by GameView to show high scores
+                gameState.setAction("HIGH_SCORES");
+            }
+        } else if (!gameState.isGameOver() && !gameState.isGameWon()) {
             // Normal game touch handling
             inputManager.handleTouch(x, y, isDown);
             
@@ -375,6 +428,14 @@ public class GameEngine {
     public void cleanup() {
         soundManager.cleanup();
         
+        // Clean up UI managers
+        if (gameOverManager != null) {
+            gameOverManager.cleanup();
+        }
+        if (winManager != null) {
+            winManager.cleanup();
+        }
+        
         // Clean up managers
         if (enemyManager != null) {
             enemyManager.clear();
@@ -413,6 +474,16 @@ public class GameEngine {
         // Set game over images
         gameOverManager.setGameOverBitmap(resourceManager.getGameOverBitmap());
         gameOverManager.setYouLoseBitmap(resourceManager.getYouLoseBitmap());
+
+        // Update Win screen assets after resources are loaded
+        if (winManager != null) {
+            winManager.setButtonBitmaps(
+                resourceManager.getReplayButtonBitmap(),
+                resourceManager.getMenuButtonBitmap(),
+                resourceManager.getHighScoresButtonBitmap()
+            );
+            winManager.setCongratulationsBitmap(resourceManager.getCongratulationsBitmap());
+        }
     }
     
     public void setSoundManager(SoundManager soundManager) {

@@ -34,6 +34,10 @@ public class ResourceManager {
     private Bitmap replayButtonBitmap;
     private Bitmap menuButtonBitmap;
     private Bitmap settingButtonBitmap;
+    private Bitmap highScoresButtonBitmap;
+    
+    // Win state images
+    private Bitmap congratulationsBitmap;
     
     // Additional PowerUp bitmaps
     private Bitmap powerUpLaserBitmap;
@@ -68,9 +72,39 @@ public class ResourceManager {
             youLoseBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.you_lose, 400, 150);
             
             // Load button images từ res/drawable
-            replayButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.replay, 120, 60);
-            menuButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.menu, 120, 60);
+            replayButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.replay, 200, 80);
+            menuButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.menu, 200, 80);
             settingButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.setting, 120, 60);
+            
+            // Try to load congratulations image and high scores button
+            try {
+                // Try to load congratulations image with direct BitmapFactory first
+                congratulationsBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.congratulations);
+                if (congratulationsBitmap != null) {
+                    int origW = congratulationsBitmap.getWidth();
+                    int origH = congratulationsBitmap.getHeight();
+                    // Target ~60% of screen width, preserve aspect ratio
+                    int targetW = Math.max(200, Math.min((int) (screenWidth * 0.6f), origW));
+                    int targetH = (int) (origH * (targetW / (float) origW));
+                    if (targetW != origW || targetH != origH) {
+                        congratulationsBitmap = Bitmap.createScaledBitmap(congratulationsBitmap, targetW, targetH, true);
+                    }
+                    Log.d("ResourceManager", "Congratulations image loaded: " + origW + "x" + origH + " -> " + targetW + "x" + targetH);
+                } else {
+                    Log.w("ResourceManager", "Failed to decode congratulations image (null bitmap)");
+                }
+            } catch (Exception e) {
+                Log.w("ResourceManager", "Congratulations image not found, will use text instead", e);
+                congratulationsBitmap = null;
+            }
+            
+            try {
+                highScoresButtonBitmap = BitmapUtils.loadOptimizedBitmap(context, R.drawable.high_scores, 200, 80);
+                Log.d("ResourceManager", "High scores button image loaded successfully");
+            } catch (Exception e) {
+                Log.w("ResourceManager", "High scores button image not found, creating programmatic button", e);
+                highScoresButtonBitmap = createHighScoresButton(200, 80);
+            }
             
             // Create additional power-up placeholder bitmaps - chỉ 3 loại cần thiết
             powerUpLaserBitmap = createPlaceholderBitmap(40, 40, Color.rgb(100, 255, 255));
@@ -106,6 +140,36 @@ public class ResourceManager {
         return bitmap;
     }
     
+    private Bitmap createHighScoresButton(int width, int height) {
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        
+        // Create a gradient background
+        Paint paint = new Paint();
+        paint.setAntiAlias(true);
+        
+        // Background
+        paint.setColor(Color.argb(200, 255, 215, 0)); // Gold
+        canvas.drawRoundRect(0, 0, width, height, 10, 10, paint);
+        
+        // Border
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(3);
+        paint.setColor(Color.WHITE);
+        canvas.drawRoundRect(2, 2, width-2, height-2, 10, 10, paint);
+        
+        // Text
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(Color.BLACK);
+        paint.setTextSize(12);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setFakeBoldText(true);
+        canvas.drawText("HIGH", width/2, height/2 - 6, paint);
+        canvas.drawText("SCORES", width/2, height/2 + 8, paint);
+        
+        return bitmap;
+    }
+    
     private Bitmap loadAndScaleBitmap(Context context, int resourceId, int width, int height) {
         Bitmap original = BitmapFactory.decodeResource(context.getResources(), resourceId);
         return Bitmap.createScaledBitmap(original, width, height, true);
@@ -129,6 +193,10 @@ public class ResourceManager {
     public Bitmap getReplayButtonBitmap() { return replayButtonBitmap; }
     public Bitmap getMenuButtonBitmap() { return menuButtonBitmap; }
     public Bitmap getSettingButtonBitmap() { return settingButtonBitmap; }
+    public Bitmap getHighScoresButtonBitmap() { return highScoresButtonBitmap; }
+    
+    // Win state getters
+    public Bitmap getCongratulationsBitmap() { return congratulationsBitmap; }
     
     // PowerUp getters - chỉ 6 loại
     public Bitmap getPowerUpLaserBitmap() { return powerUpLaserBitmap; }
@@ -160,6 +228,8 @@ public class ResourceManager {
         recycleBitmap(replayButtonBitmap);
         recycleBitmap(menuButtonBitmap);
         recycleBitmap(settingButtonBitmap);
+        recycleBitmap(highScoresButtonBitmap);
+        recycleBitmap(congratulationsBitmap);
         recycleBitmap(powerUpLaserBitmap);
         recycleBitmap(powerUpEnergyShieldBitmap);
         recycleBitmap(powerUpForceFieldBitmap);

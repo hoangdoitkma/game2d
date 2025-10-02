@@ -12,6 +12,7 @@ public class GameState {
     private int score = 0;
     private int level = 1;
     private boolean gameOver = false;
+    private boolean gameWon = false;
     private boolean paused = false;
     
     // Power-up effects - chỉ giữ 6 loại
@@ -43,13 +44,19 @@ public class GameState {
     }
     
     public void update(float deltaTime) {
-        if (gameOver || paused) return;
+        if (gameOver || gameWon || paused) return;
         
         // Update level based on score - không thay đổi speed multiplier
         int newLevel = (score / 100) + 1;
         if (newLevel != level) {
             level = newLevel;
             // speedMultiplier giữ nguyên, không tăng
+            
+            // Check for WIN condition - reach level 2
+            if (level >= 2) {
+                gameWon = true;
+                return;
+            }
         }
         
         // Update power-up effects - Bật lại để tắt khi hết thời gian
@@ -159,12 +166,28 @@ public class GameState {
             paint.setTextSize(50);
             canvas.drawText("Final Score: " + score, screenWidth / 2f - 150, screenHeight / 2f + 80, paint);
         }
+        
+        // Draw game won screen
+        if (gameWon) {
+            paint.setColor(Color.rgb(255, 215, 0)); // Gold color
+            paint.setTextSize(80);
+            canvas.drawText("CONGRATULATIONS!", screenWidth / 2f - 300, screenHeight / 2f - 50, paint);
+            
+            paint.setColor(Color.GREEN);
+            paint.setTextSize(60);
+            canvas.drawText("YOU WIN!", screenWidth / 2f - 120, screenHeight / 2f + 20, paint);
+            
+            paint.setColor(Color.WHITE);
+            paint.setTextSize(50);
+            canvas.drawText("Final Score: " + score, screenWidth / 2f - 150, screenHeight / 2f + 100, paint);
+        }
     }
     
     public void reset() {
         score = 0;
         level = 1;
         gameOver = false;
+        gameWon = false;
         paused = false;
         speedMultiplier = 1.0f;
         
@@ -185,6 +208,7 @@ public class GameState {
     public int getScore() { return score; }
     public int getLevel() { return level; }
     public boolean isGameOver() { return gameOver; }
+    public boolean isGameWon() { return gameWon; }
     public boolean isPaused() { return paused; }
     public float getSpeedMultiplier() { return speedMultiplier; }
     
@@ -197,6 +221,7 @@ public class GameState {
     
     // Setters
     public void setGameOver(boolean gameOver) { this.gameOver = gameOver; }
+    public void setGameWon(boolean gameWon) { this.gameWon = gameWon; }
     public void setPaused(boolean paused) { this.paused = paused; }
     public void setAction(String action) { this.pendingAction = action; }
     

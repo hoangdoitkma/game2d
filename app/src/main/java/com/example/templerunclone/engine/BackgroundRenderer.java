@@ -36,7 +36,7 @@ public class BackgroundRenderer {
     }
     
     public void draw(Canvas canvas, Paint paint) {
-        if (backgroundBitmap != null) {
+        if (backgroundBitmap != null && !backgroundBitmap.isRecycled()) {
             canvas.drawBitmap(backgroundBitmap, 0, bgY1, paint);
             canvas.drawBitmap(backgroundBitmap, 0, bgY2, paint);
         }
