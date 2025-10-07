@@ -96,5 +96,12 @@ public abstract class Enemy extends GameObject {
     
     // Setters
     public void setBitmap(Bitmap bitmap) { this.bitmap = bitmap; }
-    public void setSpeed(float speed) { this.speed = speed; }
+    public void setSpeed(float speed) { 
+        this.speed = speed; 
+        this.velocityY = speed;
+    }
+    public void setHealth(int health) { 
+        this.health = health; 
+        this.maxHealth = health;
+    }
 }

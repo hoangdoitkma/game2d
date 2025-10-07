@@ -13,6 +13,7 @@ import android.view.SurfaceView;
 import com.example.templerunclone.engine.GameEngine;
 import com.example.templerunclone.managers.ResourceManager;
 import com.example.templerunclone.managers.SoundManager;
+import com.example.templerunclone.ui.LoadingScreen;
 
 /**
  * Main GameView using the restructured architecture
@@ -33,12 +34,14 @@ public class GameView extends SurfaceView implements Runnable {
     private GameEngine gameEngine;
     private ResourceManager resourceManager;
     private SoundManager soundManager;
+    private LoadingScreen loadingScreen;
     
     // Screen dimensions
     private int screenWidth = 0, screenHeight = 0;
     
     // Surface state
     private volatile boolean surfaceReady = false;
+    private volatile boolean resourcesLoaded = false;
     
     public GameView(Context context) {
         super(context);
@@ -73,6 +76,9 @@ public class GameView extends SurfaceView implements Runnable {
                 screenHeight = height;
                 Log.d(TAG, "Surface changed: " + width + "x" + height);
                 
+                // Initialize loading screen
+                loadingScreen = new LoadingScreen(screenWidth, screenHeight);
+                
                 // Initialize game engine with screen dimensions
                 initializeGameEngine();
             }
@@ -91,22 +97,47 @@ public class GameView extends SurfaceView implements Runnable {
         if (gameEngine == null && screenWidth > 0 && screenHeight > 0) {
             Log.d(TAG, "Initializing game engine with dimensions: " + screenWidth + "x" + screenHeight);
             
+            // Initialize game engine first (lightweight)
             gameEngine = new GameEngine(screenWidth, screenHeight);
-            
-            // Set context for high score manager
             gameEngine.setContext(getContext());
             
-            // Initialize resource manager
-            resourceManager = new ResourceManager(screenWidth, screenHeight);
-            resourceManager.loadResources(getContext());
-            gameEngine.setResourceManager(resourceManager);
-            
-            // Initialize sound manager
-            soundManager = new SoundManager();
-            soundManager.initialize(getContext());
-            gameEngine.setSoundManager(soundManager);
-            
-            Log.d(TAG, "Game engine initialized successfully");
+            // Load resources in background thread to avoid blocking UI
+            new Thread(() -> {
+                try {
+                    Log.d(TAG, "Loading resources in background...");
+                    
+                    // Initialize resource manager
+                    resourceManager = new ResourceManager(screenWidth, screenHeight);
+                    resourceManager.loadResources(getContext());
+                    
+                    // Initialize sound manager
+                    soundManager = new SoundManager();
+                    soundManager.initialize(getContext());
+                    
+                    // Set managers on main thread
+                    post(() -> {
+                        if (gameEngine != null) {
+                            gameEngine.setResourceManager(resourceManager);
+                            gameEngine.setSoundManager(soundManager);
+                            resourcesLoaded = true;
+                            Log.d(TAG, "Game engine initialized successfully");
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                    Log.e(TAG, "Error loading resources", e);
+                    post(() -> {
+                        // Fallback: create minimal resources
+                        if (gameEngine != null && resourceManager == null) {
+                            resourceManager = new ResourceManager(screenWidth, screenHeight);
+                            soundManager = new SoundManager();
+                            gameEngine.setResourceManager(resourceManager);
+                            gameEngine.setSoundManager(soundManager);
+                            resourcesLoaded = true;
+                        }
+                    });
+                }
+            }).start();
         }
     }
     
@@ -185,13 +216,19 @@ public class GameView extends SurfaceView implements Runnable {
         
         long lastTime = System.currentTimeMillis();
         int frameCount = 0;
+        long lastFpsTime = System.currentTimeMillis();
         
         while (isPlaying && surfaceReady) {
             long currentTime = System.currentTimeMillis();
             long deltaTime = currentTime - lastTime;
             
-            // Update game logic
-            if (gameEngine != null) {
+            // Skip frames if too much time has passed (prevent spiral of death)
+            if (deltaTime > 100) { // If more than 100ms passed, skip heavy operations
+                deltaTime = 16; // Cap to 60 FPS equivalent
+            }
+            
+            // Update game logic only if resources are loaded
+            if (gameEngine != null && resourcesLoaded) {
                 gameEngine.update();
                 
                 // Check for pending actions from game over screen
@@ -199,21 +236,24 @@ public class GameView extends SurfaceView implements Runnable {
                 if (pendingAction != null) {
                     handleGameAction(pendingAction);
                 }
-            } else {
-                Log.w(TAG, "Game engine is null, trying to initialize...");
+            } else if (gameEngine == null) {
+                // Only try to initialize if game engine is null
                 initializeGameEngine();
             }
             
             // Render game
             render();
             
-            // Log every 60 frames (1 second at 60 FPS)
+            // Reduced logging frequency to every 3 seconds
             frameCount++;
-            if (frameCount % 60 == 0) {
-                Log.d(TAG, "Game running - Frame: " + frameCount + ", GameEngine: " + (gameEngine != null ? "OK" : "NULL"));
+            if (frameCount % 180 == 0) {
+                long currentFpsTime = System.currentTimeMillis();
+                float fps = 180000f / (currentFpsTime - lastFpsTime);
+                Log.d(TAG, "FPS: " + String.format("%.1f", fps) + ", GameEngine: " + (gameEngine != null ? "OK" : "NULL"));
+                lastFpsTime = currentFpsTime;
             }
             
-            // Control frame rate
+            // Control frame rate with better timing
             long frameTime = System.currentTimeMillis() - currentTime;
             if (frameTime < FRAME_TIME) {
                 try {
@@ -249,26 +289,28 @@ public class GameView extends SurfaceView implements Runnable {
     
     private void render() {
         if (!surfaceReady || holder == null) {
-            Log.w(TAG, "Cannot render - surfaceReady: " + surfaceReady + ", holder: " + (holder != null ? "OK" : "NULL"));
-            return;
+            return; // Reduce logging spam
         }
         
         Canvas canvas = null;
         try {
             canvas = holder.lockCanvas();
             if (canvas != null) {
-                if (gameEngine != null) {
-                    // Clear canvas
-                    canvas.drawRGB(0, 0, 0);
-                    
-                    // Render game
+                // Clear canvas with optimized method
+                canvas.drawColor(android.graphics.Color.BLACK);
+                
+                if (gameEngine != null && resourcesLoaded) {
+                    // Only render if all components are ready
                     gameEngine.render(canvas, paint);
+                } else if (loadingScreen != null) {
+                    // Show loading screen
+                    loadingScreen.draw(canvas);
                 } else {
-                    // Show loading screen if game engine not ready
-                    canvas.drawRGB(50, 50, 50); // Dark gray background
+                    // Fallback loading text
                     paint.setColor(android.graphics.Color.WHITE);
                     paint.setTextSize(60);
-                    canvas.drawText("Loading...", canvas.getWidth() / 4f, canvas.getHeight() / 2f, paint);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText("Loading...", canvas.getWidth() / 2f, canvas.getHeight() / 2f, paint);
                 }
             }
         } catch (Exception e) {

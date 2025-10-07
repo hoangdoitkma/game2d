@@ -1,10 +1,13 @@
 package com.example.templerunclone.engine;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import com.example.templerunclone.entities.*;
 import com.example.templerunclone.entities.bullets.*;
 import com.example.templerunclone.managers.*;
+import com.example.templerunclone.levels.LevelManager;
+import com.example.templerunclone.levels.LevelConfig;
 import com.example.templerunclone.ui.HUDManager;
 import com.example.templerunclone.ui.GameOverManager;
 import com.example.templerunclone.ui.WinManager;
@@ -31,6 +34,9 @@ public class GameEngine {
     private GameOverManager gameOverManager;
     private WinManager winManager;
     private HighScoreManager highScoreManager;
+    
+    // Level Management
+    private LevelManager levelManager;
     
     // Game state
     private GameState gameState;
@@ -64,6 +70,17 @@ public class GameEngine {
         if (highScoreManager == null && context != null) {
             highScoreManager = new HighScoreManager(context);
         }
+        
+        // Load initial assets when context is set
+        if (context != null && resourceManager != null && levelManager != null) {
+            android.util.Log.d("GameEngine", "Loading initial assets after setContext");
+            
+            // Initialize level 1 and load its assets
+            levelManager.initializeLevel(context);
+            updateAssetsForCurrentLevel();
+            
+            android.util.Log.d("GameEngine", "Initial assets loaded");
+        }
     }
     
     private void initialize() {
@@ -82,6 +99,10 @@ public class GameEngine {
         hudManager = new HUDManager(screenWidth, screenHeight);
         gameOverManager = new GameOverManager(screenWidth, screenHeight);
         winManager = new WinManager(screenWidth, screenHeight);
+        
+        // Initialize level manager
+        levelManager = new LevelManager(screenWidth, screenHeight);
+        levelManager.setManagers(resourceManager, enemyManager, powerUpManager);
         
         // Set button bitmaps after managers are created
         gameOverManager.setButtonBitmaps(
@@ -105,6 +126,17 @@ public class GameEngine {
         // Initialize background
         backgroundRenderer = new BackgroundRenderer(screenWidth, screenHeight);
         
+        // Set initial background immediately to prevent null
+        if (resourceManager != null) {
+            Bitmap initialBackground = resourceManager.getCurrentLevelBackground();
+            if (initialBackground != null) {
+                backgroundRenderer.setBackground(initialBackground);
+                android.util.Log.d("GameEngine", "Initial background set in constructor");
+            } else {
+                android.util.Log.w("GameEngine", "Initial background is null in constructor");
+            }
+        }
+        
         // Initialize player
         float playerX = screenWidth / 2f - 50;
         float playerY = screenHeight - 200;
@@ -123,22 +155,28 @@ public class GameEngine {
         }
         
         // Update player
-        player.update(deltaTime);
+        if (player != null) {
+            player.update(deltaTime);
+        }
         
-        // Handle shooting
+        // Handle shooting with reduced frequency checks
         if (inputManager.isShooting() && currentTime - lastShotTime > shootInterval) {
             shoot();
             lastShotTime = currentTime;
         }
         
-        // Update bullets
+        // Update bullets (limit processing)
         updateBullets(deltaTime);
         
-        // Update enemies với level parameter
-        enemyManager.update(deltaTime, gameState.getSpeedMultiplier(), gameState.getLevel());
+        // Update enemies with level parameter (reduce spawn frequency if too many objects)
+        if (enemyManager.getEnemies().size() < 15) { // Limit max enemies to prevent lag
+            enemyManager.update(deltaTime, gameState.getSpeedMultiplier(), gameState.getLevel());
+        }
         
-        // Update power-ups
-        powerUpManager.update(deltaTime);
+        // Update power-ups (limit active power-ups)
+        if (powerUpManager.getPowerUps().size() < 8) {
+            powerUpManager.update(deltaTime);
+        }
         
         // Update explosions
         updateExplosions(deltaTime);
@@ -146,12 +184,65 @@ public class GameEngine {
         // Update background
         backgroundRenderer.update(deltaTime, gameState.getSpeedMultiplier());
         
-        // Check collisions
-        checkCollisions();
+        // Check collisions (only if we have active objects)
+        if (!bullets.isEmpty() || !enemyManager.getEnemies().isEmpty()) {
+            checkCollisions();
+        }
         
         // Update game state
         boolean wasGameWon = gameState.isGameWon();
         gameState.update(deltaTime);
+        
+        // Additional win condition check based on level progress
+        checkLevelWinConditions();
+        
+        // Update level manager and handle transitions
+        levelManager.updateTransition(deltaTime);
+        
+        // Check for level advancement
+        if (levelManager.shouldAdvanceLevel(gameState.getScore()) && !levelManager.isTransitioning()) {
+            levelManager.startLevelTransition(player);
+        }
+        
+        // Check if level transition completed (use single-fire flag to avoid timing issues)
+        if (levelManager.consumeTransitionJustCompleted()) {
+            // Level transition completed, initialize new level
+            if (context != null) {
+                levelManager.initializeLevel(context);
+                
+                // Force update all visual assets for new level
+                updateAssetsForCurrentLevel();
+                
+                // Double-check background is set after level change
+                Bitmap newBackground = resourceManager.getCurrentLevelBackground();
+                if (newBackground != null && !newBackground.isRecycled()) {
+                    backgroundRenderer.setBackground(newBackground);
+                    android.util.Log.d("GameEngine", "Background force-updated after level transition");
+                } else {
+                    android.util.Log.e("GameEngine", "Background is null/recycled after level transition!");
+                }
+                
+                // Clear existing entities so new ones use fresh level assets
+                if (enemyManager != null) {
+                    enemyManager.clear();
+                }
+                if (powerUpManager != null) {
+                    powerUpManager.clear();
+                }
+                if (bullets != null) {
+                    bullets.clear();
+                }
+                
+                // Update player with saved state
+                levelManager.restorePlayerState(player);
+                // Reset player position for new level
+                float playerX = screenWidth / 2f - 50;
+                float playerY = screenHeight - 200;
+                player.setPosition(playerX, playerY);
+                
+                android.util.Log.d("GameEngine", "Level transition completed to level " + levelManager.getCurrentLevel());
+            }
+        }
         
         // Check if player just won the game
         if (!wasGameWon && gameState.isGameWon()) {
@@ -177,13 +268,26 @@ public class GameEngine {
         float bulletX = player.getX() + player.getWidth() / 2 - 4;
         float bulletY = player.getY() - 16;
         
+        // Get level-specific bullet configuration
+        LevelManager.BulletConfig bulletConfig = levelManager.getBulletConfig();
+        
         Bullet bullet;
         
-        // Chọn loại đạn dựa trên PowerUp active - chỉ 3 loại
+        // Chọn loại đạn dựa trên PowerUp active và level config
         if (gameState.isLaserBeamActive()) {
-            bullet = new LaserBullet(bulletX, bulletY, 1000f);
+            bullet = new LaserBullet(bulletX, bulletY, bulletConfig.speed);
         } else {
-            bullet = new Bullet(bulletX, bulletY, 800f); // Default bullet
+            bullet = new Bullet(bulletX, bulletY, bulletConfig.speed);
+            bullet.setDamage(bulletConfig.damage);
+        }
+        
+        // Set level-specific bullet bitmap
+        Bitmap bulletBitmap = resourceManager.getCurrentLevelBullet();
+        if (bulletBitmap != null) {
+            bullet.setBitmap(bulletBitmap);
+            android.util.Log.d("GameEngine", "Set bullet bitmap for level " + levelManager.getCurrentLevel());
+        } else {
+            android.util.Log.w("GameEngine", "No bullet bitmap available for level " + levelManager.getCurrentLevel());
         }
         
         bullets.add(bullet);
@@ -195,11 +299,19 @@ public class GameEngine {
             float offset = 30f;
             
             if (gameState.isLaserBeamActive()) {
-                leftBullet = new LaserBullet(bulletX - offset, bulletY, 1000f);
-                rightBullet = new LaserBullet(bulletX + offset, bulletY, 1000f);
+                leftBullet = new LaserBullet(bulletX - offset, bulletY, bulletConfig.speed);
+                rightBullet = new LaserBullet(bulletX + offset, bulletY, bulletConfig.speed);
             } else {
-                leftBullet = new Bullet(bulletX - offset, bulletY, 800f);
-                rightBullet = new Bullet(bulletX + offset, bulletY, 800f);
+                leftBullet = new Bullet(bulletX - offset, bulletY, bulletConfig.speed);
+                rightBullet = new Bullet(bulletX + offset, bulletY, bulletConfig.speed);
+                leftBullet.setDamage(bulletConfig.damage);
+                rightBullet.setDamage(bulletConfig.damage);
+            }
+            
+            // Set bitmap for multi-shot bullets too
+            if (bulletBitmap != null) {
+                leftBullet.setBitmap(bulletBitmap);
+                rightBullet.setBitmap(bulletBitmap);
             }
             
             bullets.add(leftBullet);
@@ -285,7 +397,12 @@ public class GameEngine {
         // Player vs PowerUp collisions
         List<PowerUp> collectedPowerUps = collisionManager.checkPowerUpCollisions(player, powerUpManager.getPowerUps());
         for (PowerUp powerUp : collectedPowerUps) {
-            gameState.applyPowerUp(powerUp);
+            // Handle health power-up specially
+            if (powerUp.getType() == PowerUp.PowerUpType.HEALTH) {
+                player.setHealth(player.getHealth() + 1); // Heal 1 HP
+            } else {
+                gameState.applyPowerUp(powerUp);
+            }
             powerUp.setActive(false);
             soundManager.playPowerUp();
         }
@@ -300,15 +417,39 @@ public class GameEngine {
     }
     
     public void render(Canvas canvas, Paint paint) {
-        // Draw background
+        if (canvas == null) return;
+        
+        // Draw level-specific background or transition effect
+        if (levelManager != null && levelManager.isTransitioning()) {
+            // Draw current background
+            backgroundRenderer.draw(canvas, paint);
+            // Draw transition effect on top
+            levelManager.drawTransition(canvas, paint);
+            
+            // Draw level info during transition
+            paint.setColor(android.graphics.Color.WHITE);
+            paint.setTextSize(40);
+            paint.setTextAlign(Paint.Align.CENTER);
+            String levelText = "Level " + levelManager.getCurrentLevel() + ": " + 
+                             levelManager.getCurrentLevelConfig().getLevelName();
+            canvas.drawText(levelText, screenWidth / 2f, 100, paint);
+            return; // Skip other rendering during transition
+        } 
+        
+        // Draw normal background
         backgroundRenderer.draw(canvas, paint);
         
-        // Draw player with shield effects
-        player.drawWithShield(canvas, paint, gameState);
+        // Draw game objects only if not transitioning
+        if (player != null) {
+            player.drawWithShield(canvas, paint, gameState);
+        }
         
-        // Draw bullets
+        // Draw bullets (limit rendering if too many)
+        int bulletCount = 0;
         for (Bullet bullet : bullets) {
-            bullet.draw(canvas, paint);
+            if (bulletCount++ < 50) { // Limit bullet rendering
+                bullet.draw(canvas, paint);
+            }
         }
         
         // Draw enemies
@@ -317,22 +458,27 @@ public class GameEngine {
         // Draw power-ups
         powerUpManager.draw(canvas, paint);
         
-        // Draw explosions
+        // Draw explosions (limit explosion rendering)
+        int explosionCount = 0;
         for (Explosion explosion : explosions) {
-            explosion.draw(canvas, paint);
+            if (explosionCount++ < 10) { // Limit explosion rendering
+                explosion.draw(canvas, paint);
+            }
         }
         
-        // Draw HUD
-        hudManager.draw(canvas, gameState, player);
+        // Always draw HUD
+        if (hudManager != null) {
+            hudManager.draw(canvas, gameState, player);
+        }
         
         // Draw Game Over screen if game is over
-        if (gameState.isGameOver()) {
-            long playTime = hudManager.getPlayTime(); // Use HUD manager's frozen time
+        if (gameState.isGameOver() && gameOverManager != null) {
+            long playTime = hudManager != null ? hudManager.getPlayTime() : 0;
             gameOverManager.draw(canvas, gameState.getScore(), gameState.getLevel(), playTime);
         }
         
         // Draw Win screen if game is won
-        if (gameState.isGameWon()) {
+        if (gameState.isGameWon() && winManager != null) {
             winManager.draw(canvas, gameState.getScore(), gameState.getLevel());
         }
     }
@@ -387,17 +533,120 @@ public class GameEngine {
             if (isDown) {
                 player.moveTo(x - player.getWidth() / 2, y - player.getHeight() / 2);
                 
-                // Test cheat: Touch top-left corner to spawn all PowerUps
-                if (x < 100 && y < 100 && gameState.getLevel() == 1) {
-                    powerUpManager.spawnAllPowerUpsForTesting(200f, 200f);
-                }
+                // Cheat codes
+                checkCheatCodes(x, y);
             }
         }
     }
     
+    /**
+     * Update all visual assets to match current level
+     */
+    private void updateAssetsForCurrentLevel() {
+        if (resourceManager == null || levelManager == null) return;
+        
+        // FIRST: Load new assets for current level
+        LevelConfig currentLevelConfig = levelManager.getCurrentLevelConfig();
+        if (currentLevelConfig != null) {
+            android.util.Log.d("GameEngine", "Loading new assets for level " + currentLevelConfig.getLevelNumber() + ": " + currentLevelConfig.getLevelName());
+            resourceManager.loadLevelResources(context, currentLevelConfig);
+        }
+        
+        // THEN: Update background
+        Bitmap newBackground = resourceManager.getCurrentLevelBackground();
+        backgroundRenderer.setBackground(newBackground);
+        android.util.Log.d("GameEngine", "Updated background for level " + levelManager.getCurrentLevel());
+        
+        // Update player
+        Bitmap newPlayer = resourceManager.getCurrentLevelPlayer();
+        if (newPlayer != null) {
+            player.setBitmap(newPlayer);
+            android.util.Log.d("GameEngine", "Updated player bitmap for level " + levelManager.getCurrentLevel());
+        }
+        
+        // Refresh enemy manager settings (spawn rate, speed etc already set in initializeLevel)
+        if (enemyManager != null && levelManager.getCurrentLevelConfig() != null) {
+            enemyManager.configureLevelSettings(
+                levelManager.getCurrentLevelConfig().getEnemySpawnRate(),
+                levelManager.getCurrentLevelConfig().getEnemySpeed(),
+                levelManager.getCurrentLevelConfig().getEnemyHealth(),
+                levelManager.getCurrentLevelConfig().getMaxEnemies()
+            );
+        }
+        
+        // Update enemy manager to use new assets
+        if (enemyManager != null) {
+            enemyManager.setResourceManager(resourceManager);
+            android.util.Log.d("GameEngine", "Updated enemy manager assets for level " + levelManager.getCurrentLevel());
+        }
+        
+        // Update power-up manager
+        if (powerUpManager != null) {
+            powerUpManager.setResourceManager(resourceManager);
+            android.util.Log.d("GameEngine", "Updated powerup manager assets for level " + levelManager.getCurrentLevel());
+        }
+        
+        // Debug log asset status
+        logAssetStatus();
+    }
+    
+    private void logAssetStatus() {
+        android.util.Log.d("GameEngine", "=== ASSET STATUS DEBUG ===");
+        Bitmap bg = resourceManager.getCurrentLevelBackground();
+        Bitmap player = resourceManager.getCurrentLevelPlayer();
+        Bitmap bullet = resourceManager.getCurrentLevelBullet();
+        
+        android.util.Log.d("GameEngine", "Background: " + (bg != null ? bg.getWidth() + "x" + bg.getHeight() : "NULL"));
+        android.util.Log.d("GameEngine", "Player: " + (player != null ? player.getWidth() + "x" + player.getHeight() : "NULL"));
+        android.util.Log.d("GameEngine", "Bullet: " + (bullet != null ? bullet.getWidth() + "x" + bullet.getHeight() : "NULL"));
+        android.util.Log.d("GameEngine", "Current Level: " + levelManager.getCurrentLevel());
+        android.util.Log.d("GameEngine", "=========================");
+    }
+
+    /**
+     * Check for cheat codes based on touch position
+     */
+    private void checkCheatCodes(float x, float y) {
+        float cornerSize = 150f; // Size of corner zones
+        
+        // Cheat: Win - Touch top-right corner
+        if (x > screenWidth - cornerSize && y < cornerSize) {
+            gameState.setGameWon(true);
+            android.util.Log.d("GameEngine", "CHEAT: Win activated by touching top-right corner");
+            soundManager.playCongratulations();
+            if (highScoreManager != null) {
+                highScoreManager.addScore(gameState.getScore(), gameState.getLevel());
+            }
+        }
+        
+        // Cheat: Lose - Touch bottom-left corner
+        else if (x < cornerSize && y > screenHeight - cornerSize) {
+            gameState.setGameOver(true);
+            android.util.Log.d("GameEngine", "CHEAT: Game Over activated by touching bottom-left corner");
+            soundManager.playPlayerHit(); // Use available sound method
+        }
+        
+        // Original PowerUp cheat: Touch top-left corner (only in level 1)
+        else if (x < cornerSize && y < cornerSize && gameState.getLevel() == 1) {
+            powerUpManager.spawnAllPowerUpsForTesting(200f, 200f);
+            android.util.Log.d("GameEngine", "CHEAT: All PowerUps spawned");
+        }
+        
+        // Debug cheat: Touch bottom-right corner to advance level
+        else if (x > screenWidth - cornerSize && y > screenHeight - cornerSize) {
+            if (!levelManager.isTransitioning()) {
+                levelManager.startLevelTransition(player);
+                android.util.Log.d("GameEngine", "CHEAT: Level advancement activated");
+            }
+        }
+    }
+
     private void resetGame() {
         // Reset game state
         gameState.reset();
+        
+        // Reset level manager
+        levelManager.resetToLevel1();
         
         // Reset HUD
         hudManager.reset();
@@ -411,7 +660,16 @@ public class GameEngine {
         // Reset player
         float playerX = screenWidth / 2f - 50;
         float playerY = screenHeight - 200;
-        player = new Player(playerX, playerY, 100, 100, resourceManager.getPlayerBitmap());
+        player = new Player(playerX, playerY, 100, 100, resourceManager.getCurrentLevelPlayer());
+        
+        // Initialize level 1
+        if (context != null) {
+            levelManager.initializeLevel(context);
+            
+            // Load fresh assets for level 1
+            android.util.Log.d("GameEngine", "Loading fresh assets for game reset");
+            updateAssetsForCurrentLevel();
+        }
         
         lastUpdateTime = System.currentTimeMillis();
     }
@@ -463,13 +721,69 @@ public class GameEngine {
     public Player getPlayer() { return player; }
     public boolean isGameOver() { return gameState.isGameOver(); }
     
+    /**
+     * Check win conditions based on current level and score targets
+     */
+    private void checkLevelWinConditions() {
+        if (gameState.isGameWon() || gameState.isGameOver()) return;
+        
+        if (levelManager != null && levelManager.getCurrentLevelConfig() != null) {
+            LevelConfig currentLevel = levelManager.getCurrentLevelConfig();
+            int currentScore = gameState.getScore();
+            
+            // Check if player reached the score target for current level
+            if (currentScore >= currentLevel.getScoreToNextLevel()) {
+                // If we're on the final level (level 3), this means win
+                if (currentLevel.getLevelNumber() >= 3) {
+                    gameState.setGameWon(true);
+                    android.util.Log.d("GameEngine", "Player won by reaching score target on final level: " + currentScore);
+                }
+                // For other levels, advance to next level (handled by LevelManager)
+            }
+            
+            // Additional high score win conditions for each level
+            switch (currentLevel.getLevelNumber()) {
+                case 1:
+                    if (currentScore >= 750) { // High score win for Level 1
+                        gameState.setGameWon(true);
+                        android.util.Log.d("GameEngine", "Player won Level 1 with high score: " + currentScore);
+                    }
+                    break;
+                case 2:
+                    if (currentScore >= 1200) { // High score win for Level 2
+                        gameState.setGameWon(true);
+                        android.util.Log.d("GameEngine", "Player won Level 2 with high score: " + currentScore);
+                    }
+                    break;
+                case 3:
+                    if (currentScore >= 2000) { // High score win for Level 3
+                        gameState.setGameWon(true);
+                        android.util.Log.d("GameEngine", "Player won Level 3 with high score: " + currentScore);
+                    }
+                    break;
+            }
+        }
+    }
+
     // Resource management
     public void setResourceManager(ResourceManager resourceManager) {
         this.resourceManager = resourceManager;
-        backgroundRenderer.setBackground(resourceManager.getBackgroundBitmap());
-        player.setBitmap(resourceManager.getPlayerBitmap());
+        
+        // Wire managers
         enemyManager.setResourceManager(resourceManager);
         powerUpManager.setResourceManager(resourceManager);
+        // Update level manager reference
+        levelManager.setManagers(resourceManager, enemyManager, powerUpManager);
+        
+        // Important: initialize level resources first, then update visual assets
+        if (context != null) {
+            levelManager.initializeLevel(context);
+            // Now that resources are loaded for the current level, update all visuals
+            updateAssetsForCurrentLevel();
+        } else {
+            // If no context yet, at least attempt to update with whatever is available
+            updateAssetsForCurrentLevel();
+        }
         
         // Set game over images
         gameOverManager.setGameOverBitmap(resourceManager.getGameOverBitmap());

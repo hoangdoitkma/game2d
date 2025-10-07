@@ -39,10 +39,36 @@ public class BackgroundRenderer {
         if (backgroundBitmap != null && !backgroundBitmap.isRecycled()) {
             canvas.drawBitmap(backgroundBitmap, 0, bgY1, paint);
             canvas.drawBitmap(backgroundBitmap, 0, bgY2, paint);
+        } else {
+            // Draw a visible fallback background instead of dark blue
+            if (paint == null) {
+                paint = new Paint();
+            }
+            
+            // Create a bright, obvious fallback pattern
+            paint.setColor(android.graphics.Color.MAGENTA); // Bright magenta base
+            canvas.drawRect(0, 0, screenWidth, screenHeight, paint);
+            
+            // Add white stripes to make it obvious this is fallback
+            paint.setColor(android.graphics.Color.WHITE);
+            paint.setStrokeWidth(10);
+            for (int i = 0; i < screenWidth; i += 50) {
+                canvas.drawLine(i, 0, i, screenHeight, paint);
+            }
+            
+            android.util.Log.w("BackgroundRenderer", "Drawing BRIGHT FALLBACK background - no bitmap available");
         }
     }
     
     public void setBackground(Bitmap backgroundBitmap) {
         this.backgroundBitmap = backgroundBitmap;
+        if (backgroundBitmap != null && !backgroundBitmap.isRecycled()) {
+            android.util.Log.d("BackgroundRenderer", "Background set: " + backgroundBitmap.getWidth() + "x" + backgroundBitmap.getHeight());
+            // Reset scroll positions to ensure bitmap is visible immediately after swap
+            this.bgY1 = 0f;
+            this.bgY2 = -screenHeight;
+        } else {
+            android.util.Log.w("BackgroundRenderer", "Background set to null or recycled bitmap");
+        }
     }
 }

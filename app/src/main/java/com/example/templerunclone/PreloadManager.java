@@ -105,11 +105,11 @@ public class PreloadManager {
                 // Helper: decode scaled
                 BitmapFactory.Options opts = new BitmapFactory.Options();
                 opts.inJustDecodeBounds = true;
-                BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.background, opts);
+                BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.background_level_1, opts);
                 opts.inSampleSize = calculateInSampleSize(opts, bgW, bgH);
                 opts.inJustDecodeBounds = false;
                 opts.inPreferredConfig = Bitmap.Config.RGB_565; // save memory (no alpha needed for many sprites)
-                background = BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.background, opts);
+                background = BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.background_level_1, opts);
                 if (background != null && (background.getWidth() != bgW || background.getHeight() != bgH)) {
                     background = Bitmap.createScaledBitmap(background, bgW, bgH, true);
                 }
@@ -117,10 +117,10 @@ public class PreloadManager {
                 // player
                 opts = new BitmapFactory.Options();
                 opts.inJustDecodeBounds = true;
-                BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.ship, opts);
+                BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.player_level_1, opts);
                 opts.inSampleSize = calculateInSampleSize(opts, basePlayerW, basePlayerW);
                 opts.inJustDecodeBounds = false;
-                player = BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.ship, opts);
+                player = BitmapFactory.decodeResource(appCtx.getResources(), R.drawable.player_level_1, opts);
 
                 // enemies
                 opts = new BitmapFactory.Options();

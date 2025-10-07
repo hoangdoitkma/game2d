@@ -46,17 +46,30 @@ public class GameState {
     public void update(float deltaTime) {
         if (gameOver || gameWon || paused) return;
         
-        // Update level based on score - không thay đổi speed multiplier
-        int newLevel = (score / 100) + 1;
+        // Level progression is now handled by LevelManager
+        // Keep the simple score-based level progression as backup
+        int newLevel = Math.min(3, (score / 150) + 1); // Max level 3, advance every 150 points
         if (newLevel != level) {
             level = newLevel;
-            // speedMultiplier giữ nguyên, không tăng
-            
-            // Check for WIN condition - reach level 2
-            if (level >= 2) {
-                gameWon = true;
-                return;
-            }
+        }
+        
+        // Check for WIN conditions
+        // 1. Complete all 3 levels (traditional way)
+        if (level > 3) {
+            gameWon = true;
+            return;
+        }
+        
+        // 2. Reach high score targets per level
+        if (level == 1 && score >= 500) { // Level 1: 500 points to win
+            gameWon = true;
+            return;
+        } else if (level == 2 && score >= 1000) { // Level 2: 1000 points to win
+            gameWon = true;
+            return;
+        } else if (level == 3 && score >= 1500) { // Level 3: 1500 points to win
+            gameWon = true;
+            return;
         }
         
         // Update power-up effects - Bật lại để tắt khi hết thời gian
@@ -91,6 +104,11 @@ public class GameState {
         long currentTime = System.currentTimeMillis();
         
         switch (powerUp.getType()) {
+            case HEALTH:
+                // Health power-up will be handled by Player directly
+                // This is just a placeholder - actual healing should be done in GameEngine
+                break;
+                
             case SHIELD:
                 shieldActive = true;
                 shieldEndTime = currentTime + powerUp.getDuration();

@@ -9,6 +9,7 @@ import android.graphics.Paint;
  */
 public class PowerUp extends GameObject {
     public enum PowerUpType {
+        HEALTH,         // Health restore
         SHIELD,         // Basic shield (blue)
         RAPID_FIRE,     // Faster shooting
         MULTI_SHOT,     // Multiple bullets

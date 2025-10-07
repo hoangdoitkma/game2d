@@ -147,8 +147,20 @@ public class Player extends GameObject {
     public int getMaxHealth() { return maxHealth; }
     public boolean isInvincible() { return invincible; }
     public Bitmap getBitmap() { return bitmap; }
+    public float getSpeed() { return speed; }
     
     // Setters
     public void setBitmap(Bitmap bitmap) { this.bitmap = bitmap; }
     public void setSpeed(float speed) { this.speed = speed; }
+    public void setHealth(int health) { this.health = Math.max(0, Math.min(health, maxHealth)); }
+    public void setMaxHealth(int maxHealth) { 
+        this.maxHealth = maxHealth; 
+        this.health = Math.min(this.health, maxHealth);
+    }
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+        this.targetX = x;
+        this.targetY = y;
+    }
 }
